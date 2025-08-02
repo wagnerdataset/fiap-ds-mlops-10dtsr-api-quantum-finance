@@ -1,17 +1,23 @@
 {
-    "data" : {
-        "brand": "dell",
-        "processor_brand": "intel",
-        "processor_name": "core i5",
-        "os": "windows",
-        "weight": "casual",
-        "warranty": "2",
-        "touchscreen": "0",
-        "ram_gb": "16",
-        "hdd": "0",
-        "ssd": "256",
-        "graphic_card": "8",
-        "ram_type": "ddr4",
-        "os_bit": "64"
-    }
+  "data": {
+    "Age": 50,
+    "Occupation": 5,
+    "Annual_Income": 500000.0,
+    "Num_Bank_Accounts": 3,
+    "Num_Credit_Card": 2,
+    "Interest_Rate": 5,
+    "Num_of_Loan": 2,
+    "Delay_from_due_date": 3.0,
+    "Num_of_Delayed_Payment": 2.0,
+    "Num_Credit_Inquiries": 4.0,
+    "Credit_Mix": 2,
+    "Outstanding_Debt": 1200.75,
+    "Credit_Utilization_Ratio": 35.4,
+    "Credit_History_Age": 120.0,
+    "Payment_of_Min_Amount": 1,
+    "Total_EMI_per_month": 78.5,
+    "Amount_invested_monthly": 150.0,
+    "Payment_Behaviour": 3,
+    "Monthly_Balance": 250.3
+  }
 }

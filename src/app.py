@@ -1,10 +1,3 @@
-"""
-Função para executar predição de valor de laptop com base nos parâmetros enviados, 
-como modelo, processador, memória etc.
-Utiliza modelo que precisa ser baixado do repositório de registro de modelos em toda 
-implantação nova.
-"""
-
 from datetime import datetime
 import json
 import boto3
@@ -18,26 +11,15 @@ with open('model/model_metadata.json', 'r', encoding="utf-8") as f:
 cloudwatch = boto3.client('cloudwatch')
 
 def write_real_data(data, prediction):
-    """
-    Função para escrever os dados consumidos para depois serem estudados 
-    para desvios de dados, modelo ou conceito.
-
-    Args:
-        data (dict): dicionário de dados com todos os atributos.
-        prediction (int): valor de predição.
-    """
-
     now = datetime.now()
     now_formatted = now.strftime("%d-%m-%Y %H:%M")
-
-    file_name = f"{now.strftime('%Y-%m-%d')}_laptop_prediction_data.csv"
+    file_name = f"{now.strftime('%Y-%m-%d')}_quantum_finance_prediction_data.csv"
 
     data["price"] = prediction
     data["timestamp"] = now_formatted
     data["model_version"] = model_info["version"]
 
     s3 = boto3.client('s3')
-
     bucket_name = 'w-fiap-ds-mlops'
     s3_path = 'quantum-finance-real-data-10dtsr'
 
@@ -46,113 +28,102 @@ def write_real_data(data, prediction):
         existing_data = existing_object['Body'].read().decode('utf-8').strip().split('\n')
         existing_data.append(','.join(map(str, data.values())))
         update_content = '\n'.join(existing_data)
-
     except s3.exceptions.NoSuchKey:
         update_content = ','.join(data.keys()) + '\n' + ','.join(map(str, data.values()))
 
     s3.put_object(Body=update_content, Bucket=bucket_name, Key=f"{s3_path}/{file_name}")
 
 def input_metrics(data, prediction):
-    """
-    Função para escrever métricas customizadas no Cloudwatch.
-
-    Args:
-        data (dict): dicionário de dados com todos os atributos.
-        prediction (int): valor de predição.
-    """
-
     cloudwatch.put_metric_data(
-        MetricData = [
+        MetricData=[
             {
-                'MetricName': 'Price Prediction',
+                'MetricName': 'Score Prediction',
                 'Value': prediction,
                 'Dimensions': [{'Name': "Currency", 'Value': "BRL"}]
             },
-        ], Namespace='Qunatum Finance Model')
+        ],
+        Namespace='Qunatum Finance Model'
+    )
 
     for key, value in data.items():
         cloudwatch.put_metric_data(
-        MetricData = [
-            {
-                'MetricName': 'Laptop Feature',
-                'Value': 1,
-                'Unit': 'Count',
-                'Dimensions': [{'Name': key, 'Value': str(value)}]
-            },
-        ], Namespace='Qunatum Finance Features')
+            MetricData=[
+                {
+                    'MetricName': 'Laptop Feature',
+                    'Value': 1,
+                    'Unit': 'Count',
+                    'Dimensions': [{'Name': key, 'Value': str(value)}]
+                },
+            ],
+            Namespace='Qunatum Finance Features'
+        )
 
 def prepare_payload(data):
     """
-    Função para padronizar o payload de entrada de modo
-    a ser compatível com a execução do modelo.
-
-    Args:
-        data (dict): dicionário de dados com todos os atributos.
-
-     Returns:
-        dict: payload padronizado.
-
+    Prepara os dados para o modelo com validação de categorias codificadas.
     """
 
-    data_processed = []
-
-    data_processed.append(int(data["ram_gb"]))
-    data_processed.append(int(data["ssd"]))
-    data_processed.append(int(data["hdd"]))
-    data_processed.append(int(data["graphic_card"]))
-    data_processed.append(int(data["warranty"]))
-
+    # Validação de valores categóricos
     conditions = {
-        "brand": {"asus", "dell", "hp", "lenovo", "other"},
-        "processor_brand": {"amd", "intel", "m1"},
-        "processor_name": {"core i3", "core i5", "core i7", "other", "ryzen 5", "ryzen 7"},
-        "os": {"other", "windows"},
-        "weight": {"casual", "gaming", "thinnlight"},
-        "touchscreen": {"0", "1"},
-        "ram_type": {"ddr4", "other"},
-        "os_bit": {"32", "64"}
+        "Occupation": set(range(1, 14 + 1)),  # 1 a 14
+        "Credit_Mix": {1, 2, 3},
+        "Payment_of_Min_Amount": {0, 1},
+        "Payment_Behaviour": {1, 2, 3, 4, 5}
     }
 
-    for key, values in conditions.items():
-        for value in values:
-            data_processed.append(1 if data[key] == value else 0)
+    for key, valid_values in conditions.items():
+        if int(data[key]) not in valid_values:
+            raise ValueError(f"Valor inválido para '{key}': {data[key]}. Esperado: {valid_values}")
+
+    # Construção do vetor de entrada
+    data_processed = [
+        float(data["Age"]),
+        int(data["Occupation"]),
+        float(data["Annual_Income"]),
+        int(data["Num_Bank_Accounts"]),
+        int(data["Num_Credit_Card"]),
+        int(data["Interest_Rate"]),
+        int(data["Num_of_Loan"]),
+        float(data["Delay_from_due_date"]),
+        float(data["Num_of_Delayed_Payment"]),
+        float(data["Num_Credit_Inquiries"]),
+        int(data["Credit_Mix"]),
+        float(data["Outstanding_Debt"]),
+        float(data["Credit_Utilization_Ratio"]),
+        float(data["Credit_History_Age"]),
+        int(data["Payment_of_Min_Amount"]),
+        float(data["Total_EMI_per_month"]),
+        float(data["Amount_invested_monthly"]),
+        int(data["Payment_Behaviour"]),
+        float(data["Monthly_Balance"])
+    ]
 
     return data_processed
 
 def handler(event, context=False):
-    """
-    Função principal de execução da API no Lambda
-
-    Args:
-        event (json): payload para processamento.
-        context (json): dados adicionais ao contexto (opcional).
-
-     Returns:
-        json: Predição de preço.
-    """
-
     print(event)
     print(context)
 
     if "body" in event:
         print("Body found in event, invoke by API Gateway")
-
-        body_str = event.get("body", "{}")
-        body = json.loads(body_str)
-        print(body)
-
-        data = body.get("data", {})
-
+        body = json.loads(event.get("body", "{}"))
     else:
         print("Body not found in event, invoke by Lambda")
+        body = event
 
-        data = event.get("data", {})
+    data = body.get("data", {})
+    print("Payload:", data)
 
-    print(data)
-
-    data_processed = prepare_payload(data)
-    prediction = model.predict([data_processed])
-    prediction = int(prediction[0])
+    try:
+        data_processed = prepare_payload(data)
+        prediction = model.predict([data_processed])
+        prediction = int(prediction[0])
+    except Exception as e:
+        print(f"Erro ao processar: {e}")
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": str(e)})
+        }
 
     print(f"Prediction: {prediction}")
 
@@ -164,9 +135,8 @@ def handler(event, context=False):
         "headers": {
             "Content-Type": "application/json"
         },
-        "body": json.dumps(
-            {
-                "prediction": prediction,
-                "version": model_info["version"],
-            })
+        "body": json.dumps({
+            "prediction": prediction,
+            "version": model_info["version"]
+        })
     }
